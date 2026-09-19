@@ -31,8 +31,9 @@
 // skip this window to save energy.
 #define STARTUP_CONSOLE_WINDOW_MS            10000UL
 
-// TEST mode keeps the MCU awake and prints a live MPPT sample at this period.
-#define TEST_SAMPLE_INTERVAL_MS              5000UL
+// TEST mode keeps the MCU awake, logs a sample, and prints its result at
+// this period. Six samples exercise the production SD flush path in one minute.
+#define TEST_SAMPLE_INTERVAL_MS              10000UL
 
 //******************************************************************************
 // Normal logger operation
@@ -59,9 +60,11 @@
 
 //******************************************************************************
 // T-CAN485 hardware mapping
-//
+// PIN 4 ORANGE CABLE ------ B
+// PIN 5 YELLOW CABLE ------- A
+// PIN 7 BLUE CABLE ------- GND
 // Official LilyGO T-CAN485 mapping:
-//   TX=22, RX=21, CALLBACK=17, RS485 EN=9, 5V booster EN=16.
+//   TX=22, RX=21, CALLBACK=17, RS485 EN=19, 5V booster EN=16.
 // Some newer/community-reported hardware revisions use GPIO19 for RS485 EN.
 // If RS485 is silent on your exact Ticha/T-CAN485 board, change only
 // TCAN485_RS485_EN_PIN from 9 to 19 and retest.

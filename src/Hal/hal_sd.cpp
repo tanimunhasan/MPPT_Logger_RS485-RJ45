@@ -77,3 +77,11 @@ File HAL_SD_OpenAppend(const char *path)
 
     return SD.open(path, FILE_APPEND);
 }
+
+File HAL_SD_OpenRead(const char *path)
+{
+    if (!HAL_SD_Init())
+        return File();
+
+    return SD.open(path, FILE_READ);
+}

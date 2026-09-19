@@ -503,6 +503,52 @@ namespace
             return;
         }
 
+        if (upper == "LOG")
+        {
+            if ((APP.LastSample.Time.Year < 2000U) ||
+                (APP.LastSample.Time.Month < 1U) ||
+                (APP.LastSample.Time.Month > 12U))
+            {
+                Serial.println("LOG unavailable: read a valid MPPT sample first.");
+                return;
+            }
+
+            if (!Store_PrintMonthlyLog(
+                    APP.LastSample.Time.Year,
+                    APP.LastSample.Time.Month))
+            {
+                Serial.println("LOG failed: current monthly SD log is unavailable.");
+            }
+
+            return;
+        }
+
+        if (upper.startsWith("LOG="))
+        {
+            int year = 0;
+            int month = 0;
+
+            if ((sscanf(
+                    upper.c_str(),
+                    "LOG=%d-%d",
+                    &year,
+                    &month) != 2) ||
+                (year < 2000) || (year > 2099) ||
+                (month < 1) || (month > 12))
+            {
+                Serial.println("Invalid LOG format. Use LOG=YYYY-MM.");
+                return;
+            }
+
+            if (!Store_PrintMonthlyLog(
+                    (uint16_t)year,
+                    (uint8_t)month))
+            {
+                Serial.println("LOG failed: requested monthly SD log is unavailable.");
+            }
+
+            return;
+        }
         Serial.println("Unknown command. Type ? for help.");
     }
 }
@@ -533,6 +579,8 @@ void Console_PrintHelp(void)
     Serial.println("  VC              Verify EPEVER matches local config");
     Serial.println("  RD              Read live MPPT data");
     Serial.println("  RE              Read generated-energy statistics");
+    Serial.println("  LOG             Print the current test month's SD CSV log");
+    Serial.println("  LOG=YYYY-MM     Print a specific monthly SD CSV log");
     Serial.println();
     Serial.println("CLOCK");
     Serial.println("  RT              Read EPEVER RTC");

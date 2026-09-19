@@ -16,5 +16,6 @@ bool HAL_SD_IsInitialised(void);
 
 bool HAL_SD_Exists(const char *path);
 File HAL_SD_OpenAppend(const char *path);
+File HAL_SD_OpenRead(const char *path);
 
 #endif // __HAL_SD_H

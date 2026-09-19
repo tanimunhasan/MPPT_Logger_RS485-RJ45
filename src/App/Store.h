@@ -19,6 +19,7 @@ void Store_ClearConfiguration(void);
 
 bool Store_AddSample(const MPPT_SAMPLE_TYPE *sample);
 bool Store_FlushSamples(void);
+bool Store_PrintMonthlyLog(uint16_t year, uint8_t month);
 
 uint8_t Store_GetBufferedCount(void);
 uint32_t Store_GetLostSampleCount(void);

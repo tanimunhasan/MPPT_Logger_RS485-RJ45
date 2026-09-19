@@ -285,6 +285,36 @@ bool Store_AddSample(const MPPT_SAMPLE_TYPE *sample)
 
     return true;
 }
+bool Store_PrintMonthlyLog(uint16_t year, uint8_t month)
+{
+    MPPT_SAMPLE_TYPE sample = {};
+    sample.Time.Year = year;
+    sample.Time.Month = month;
+
+    char path[20];
+    makeMonthlyPath(sample, path, sizeof(path));
+
+    File file = HAL_SD_OpenRead(path);
+
+    if (!file)
+    {
+        HAL_SD_DeInit();
+        return false;
+    }
+
+    Serial.print("SD LOG: ");
+    Serial.println(path);
+    Serial.println("----------------------------------------");
+
+    while (file.available())
+        Serial.write(file.read());
+
+    file.close();
+    HAL_SD_DeInit();
+
+    Serial.println("----------------------------------------");
+    return true;
+}
 
 uint8_t Store_GetBufferedCount(void)
 {

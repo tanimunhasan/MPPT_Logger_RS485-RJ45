@@ -154,7 +154,8 @@ void run_test_mode(void)
 {
     Serial.println();
     Serial.println("@02>> TEST MODE");
-    Serial.println("Live MPPT readout; MCU remains awake.");
+    Serial.println("Live MPPT readout + SD logger test; MCU remains awake.");
+    Serial.println("A successful six-sample batch is flushed to the monthly CSV.");
     Serial.println("Use R=1 for CONFIG or R=3 for NORMAL.");
     Serial.print("> ");
 
@@ -175,7 +176,28 @@ void run_test_mode(void)
             MPPT_SAMPLE_TYPE sample = {};
 
             if (Task_ReadMppt(&sample))
+            {
                 Task_PrintMpptSample(&sample);
+
+                const uint8_t bufferedBefore = Store_GetBufferedCount();
+
+                if (!Store_AddSample(&sample))
+                {
+                    Serial.println("TEST SD store: FAIL");
+                }
+                else if ((bufferedBefore > 0U) &&
+                         (Store_GetBufferedCount() == 0U))
+                {
+                    Serial.println("TEST SD flush: PASS");
+                }
+                else
+                {
+                    Serial.print("TEST samples buffered: ");
+                    Serial.print(Store_GetBufferedCount());
+                    Serial.print('/');
+                    Serial.println(LOGGER_SD_BUFFER_SAMPLES);
+                }
+            }
             else
             {
                 Serial.print("TEST read failed. Modbus error 0x");
