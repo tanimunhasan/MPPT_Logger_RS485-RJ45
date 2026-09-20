@@ -12,6 +12,7 @@
 
 bool HAL_SD_Init(void);
 void HAL_SD_DeInit(void);
+void HAL_SD_PrepareForSleep(void);
 bool HAL_SD_IsInitialised(void);
 
 bool HAL_SD_Exists(const char *path);

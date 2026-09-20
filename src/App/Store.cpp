@@ -64,12 +64,92 @@ namespace
             sample.Time.Month);
     }
 
-    bool appendSample(
-        const MPPT_SAMPLE_TYPE &s)
-    {
-        char path[20];
-        makeMonthlyPath(s, path, sizeof(path));
+    static const char CSV_HEADER[] =
+        "DateTime,"
+        "PV_V,PV_A,PV_W,"
+        "Battery_V,Charge_A,Charge_W,"
+        "SOC_percent,"
+        "BatteryStatus,ChargingStatus,"
+        "EnergyToday_Wh,EnergyMonth_Wh,"
+        "EnergyYear_Wh,EnergyTotal_Wh\r\n";
 
+    bool writeText(File &file, const char *text)
+    {
+        const size_t length = strlen(text);
+
+        return file.write(
+            reinterpret_cast<const uint8_t*>(text),
+            length) == length;
+    }
+
+    bool formatSampleRow(
+        const MPPT_SAMPLE_TYPE &s,
+        char *outRow,
+        size_t outLength)
+    {
+        const int length = snprintf(
+            outRow,
+            outLength,
+            "%04u-%02u-%02u %02u:%02u:%02u,"
+            "%.2f,%.2f,%.2f,"
+            "%.2f,%.2f,%.2f,"
+            "%u,%u,%u,"
+            "%.0f,%.0f,%.0f,%.0f\r\n",
+            s.Time.Year,
+            s.Time.Month,
+            s.Time.Day,
+            s.Time.Hour,
+            s.Time.Minute,
+            s.Time.Second,
+            s.PvVoltageV,
+            s.PvCurrentA,
+            s.PvPowerW,
+            s.BatteryVoltageV,
+            s.ChargeCurrentA,
+            s.ChargePowerW,
+            s.BatterySocPercent,
+            s.BatteryStatusRaw,
+            s.ChargingStatusRaw,
+            s.EnergyTodayWh,
+            s.EnergyMonthWh,
+            s.EnergyYearWh,
+            s.EnergyTotalWh);
+
+        return (length > 0) && ((size_t)length < outLength);
+    }
+
+    bool samplePathMatches(
+        const MPPT_SAMPLE_TYPE &sample,
+        const char *path)
+    {
+        char samplePath[20];
+        makeMonthlyPath(sample, samplePath, sizeof(samplePath));
+
+        return strcmp(samplePath, path) == 0;
+    }
+
+    void removeWrittenSamples(const bool *written)
+    {
+        uint8_t retained = 0U;
+
+        for (uint8_t i = 0; i < gSampleCount; ++i)
+        {
+            if (!written[i])
+            {
+                if (retained != i)
+                    gSampleBuffer[retained] = gSampleBuffer[i];
+
+                retained++;
+            }
+        }
+
+        gSampleCount = retained;
+    }
+
+    bool appendSamplesForPath(
+        const char *path,
+        bool *written)
+    {
         const bool exists = HAL_SD_Exists(path);
 
         File file = HAL_SD_OpenAppend(path);
@@ -77,67 +157,38 @@ namespace
         if (!file)
             return false;
 
-        if (!exists)
+        bool ok = true;
+
+        if ((!exists) && (!writeText(file, CSV_HEADER)))
+            ok = false;
+
+        for (uint8_t i = 0; (ok) && (i < gSampleCount); ++i)
         {
-            file.println(
-                "DateTime,"
-                "PV_V,PV_A,PV_W,"
-                "Battery_V,Charge_A,Charge_W,"
-                "SOC_percent,"
-                "BatteryStatus,ChargingStatus,"
-                "EnergyToday_Wh,EnergyMonth_Wh,"
-                "EnergyYear_Wh,EnergyTotal_Wh");
+            if ((written[i]) ||
+                (!samplePathMatches(gSampleBuffer[i], path)))
+            {
+                continue;
+            }
+
+            char row[256];
+
+            if ((!formatSampleRow(
+                    gSampleBuffer[i],
+                    row,
+                    sizeof(row))) ||
+                (!writeText(file, row)))
+            {
+                ok = false;
+                break;
+            }
+
+            written[i] = true;
         }
-
-        char timestamp[24];
-
-        snprintf(
-            timestamp,
-            sizeof(timestamp),
-            "%04u-%02u-%02u %02u:%02u:%02u",
-            s.Time.Year,
-            s.Time.Month,
-            s.Time.Day,
-            s.Time.Hour,
-            s.Time.Minute,
-            s.Time.Second);
-
-        file.print(timestamp);
-        file.print(',');
-
-        file.print(s.PvVoltageV, 2);
-        file.print(',');
-        file.print(s.PvCurrentA, 2);
-        file.print(',');
-        file.print(s.PvPowerW, 2);
-        file.print(',');
-
-        file.print(s.BatteryVoltageV, 2);
-        file.print(',');
-        file.print(s.ChargeCurrentA, 2);
-        file.print(',');
-        file.print(s.ChargePowerW, 2);
-        file.print(',');
-
-        file.print(s.BatterySocPercent);
-        file.print(',');
-        file.print(s.BatteryStatusRaw);
-        file.print(',');
-        file.print(s.ChargingStatusRaw);
-        file.print(',');
-
-        file.print(s.EnergyTodayWh, 0);
-        file.print(',');
-        file.print(s.EnergyMonthWh, 0);
-        file.print(',');
-        file.print(s.EnergyYearWh, 0);
-        file.print(',');
-        file.println(s.EnergyTotalWh, 0);
 
         file.flush();
         file.close();
 
-        return true;
+        return ok;
     }
 }
 
@@ -244,20 +295,31 @@ bool Store_FlushSamples(void)
         return false;
     }
 
-    for (uint8_t i = 0; i < gSampleCount; ++i)
+    bool written[LOGGER_SD_BUFFER_SAMPLES] = {};
+    bool ok = true;
+
+    for (uint8_t i = 0; (ok) && (i < gSampleCount); ++i)
     {
-        if (!appendSample(gSampleBuffer[i]))
-        {
-            HAL_SD_DeInit();
-            Core_RecordSdError();
-            APP.LastSdWriteOk = false;
-            return false;
-        }
+        if (written[i])
+            continue;
+
+        char path[20];
+        makeMonthlyPath(gSampleBuffer[i], path, sizeof(path));
+
+        ok = appendSamplesForPath(path, written);
     }
 
     HAL_SD_DeInit();
 
-    gSampleCount = 0U;
+    removeWrittenSamples(written);
+
+    if (!ok)
+    {
+        Core_RecordSdError();
+        APP.LastSdWriteOk = false;
+        return false;
+    }
+
     APP.LastSdWriteOk = true;
     return true;
 }

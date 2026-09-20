@@ -4,6 +4,8 @@
 
 #include "hal_rs485.h"
 
+#include <driver/gpio.h>
+
 #include "../user_config.h"
 
 namespace
@@ -15,12 +17,48 @@ namespace
     {
         return (activeLevel == HIGH) ? LOW : HIGH;
     }
+
+    void releaseSleepHolds(void)
+    {
+        gpio_hold_dis((gpio_num_t)TCAN485_RS485_CALLBACK_PIN);
+        gpio_hold_dis((gpio_num_t)TCAN485_RS485_EN_PIN);
+        gpio_hold_dis((gpio_num_t)TCAN485_5V_BOOST_EN_PIN);
+    }
+
+    void driveInactivePins(void)
+    {
+        pinMode(TCAN485_RS485_CALLBACK_PIN, OUTPUT);
+        pinMode(TCAN485_RS485_EN_PIN, OUTPUT);
+        pinMode(TCAN485_5V_BOOST_EN_PIN, OUTPUT);
+
+        digitalWrite(
+            TCAN485_RS485_CALLBACK_PIN,
+            inactiveLevel(TCAN485_RS485_CALLBACK_ACTIVE_LEVEL));
+
+        digitalWrite(
+            TCAN485_RS485_EN_PIN,
+            inactiveLevel(TCAN485_RS485_EN_ACTIVE_LEVEL));
+
+        digitalWrite(
+            TCAN485_5V_BOOST_EN_PIN,
+            inactiveLevel(TCAN485_5V_BOOST_ACTIVE_LEVEL));
+    }
+
+    void holdInactivePins(void)
+    {
+        gpio_hold_en((gpio_num_t)TCAN485_RS485_CALLBACK_PIN);
+        gpio_hold_en((gpio_num_t)TCAN485_RS485_EN_PIN);
+        gpio_hold_en((gpio_num_t)TCAN485_5V_BOOST_EN_PIN);
+    }
 }
 
 bool HAL_RS485_Init(void)
 {
     if (gInitialised)
         return true;
+
+    driveInactivePins();
+    releaseSleepHolds();
 
     pinMode(TCAN485_5V_BOOST_EN_PIN, OUTPUT);
     pinMode(TCAN485_RS485_EN_PIN, OUTPUT);
@@ -57,23 +95,17 @@ void HAL_RS485_DeInit(void)
     if (gInitialised)
         gRs485Serial.end();
 
-    pinMode(TCAN485_RS485_CALLBACK_PIN, OUTPUT);
-    pinMode(TCAN485_RS485_EN_PIN, OUTPUT);
-    pinMode(TCAN485_5V_BOOST_EN_PIN, OUTPUT);
-
-    digitalWrite(
-        TCAN485_RS485_CALLBACK_PIN,
-        inactiveLevel(TCAN485_RS485_CALLBACK_ACTIVE_LEVEL));
-
-    digitalWrite(
-        TCAN485_RS485_EN_PIN,
-        inactiveLevel(TCAN485_RS485_EN_ACTIVE_LEVEL));
-
-    digitalWrite(
-        TCAN485_5V_BOOST_EN_PIN,
-        inactiveLevel(TCAN485_5V_BOOST_ACTIVE_LEVEL));
+    driveInactivePins();
 
     gInitialised = false;
+}
+
+void HAL_RS485_PrepareForSleep(void)
+{
+    HAL_RS485_DeInit();
+
+    driveInactivePins();
+    holdInactivePins();
 }
 
 bool HAL_RS485_IsInitialised(void)

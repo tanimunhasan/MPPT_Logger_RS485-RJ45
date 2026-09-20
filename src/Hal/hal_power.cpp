@@ -9,11 +9,26 @@
 #include <esp_sleep.h>
 #include <esp_system.h>
 #include <esp32-hal-bt.h>
+#include <driver/gpio.h>
 
 #include "../user_config.h"
+#include "hal_rs485.h"
+#include "hal_sd.h"
+
+namespace
+{
+    void preparePinsForDeepSleep(void)
+    {
+        HAL_RS485_PrepareForSleep();
+        HAL_SD_PrepareForSleep();
+        gpio_deep_sleep_hold_en();
+    }
+}
 
 void HAL_Power_Init(void)
 {
+    gpio_deep_sleep_hold_dis();
+
     // The logger does not require radios.
     WiFi.mode(WIFI_OFF);
     btStop();
@@ -75,6 +90,8 @@ const char* HAL_Power_GetResetReasonString(void)
 {
     Serial.flush();
 
+    preparePinsForDeepSleep();
+
     esp_sleep_enable_timer_wakeup(
         (uint64_t)seconds * 1000000ULL);
 
@@ -89,6 +106,7 @@ const char* HAL_Power_GetResetReasonString(void)
     // No timer wake source. Device remains in deep sleep until external reset
     // / power cycle.
     Serial.flush();
+    preparePinsForDeepSleep();
     delay(10);
     esp_deep_sleep_start();
 

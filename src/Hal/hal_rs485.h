@@ -10,6 +10,7 @@
 
 bool HAL_RS485_Init(void);
 void HAL_RS485_DeInit(void);
+void HAL_RS485_PrepareForSleep(void);
 bool HAL_RS485_IsInitialised(void);
 Stream& HAL_RS485_Stream(void);
 

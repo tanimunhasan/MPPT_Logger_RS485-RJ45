@@ -5,12 +5,30 @@
 #include "hal_sd.h"
 
 #include <SPI.h>
+#include <driver/gpio.h>
 
 #include "../user_config.h"
 
 namespace
 {
     bool gInitialised = false;
+
+    void releaseCsHold(void)
+    {
+        pinMode(TCAN485_SD_CS_PIN, OUTPUT);
+        digitalWrite(TCAN485_SD_CS_PIN, HIGH);
+        gpio_hold_dis((gpio_num_t)TCAN485_SD_CS_PIN);
+        digitalWrite(TCAN485_SD_CS_PIN, HIGH);
+    }
+
+    void driveInactivePins(void)
+    {
+        pinMode(TCAN485_SD_MISO_PIN, INPUT);
+        pinMode(TCAN485_SD_MOSI_PIN, INPUT);
+        pinMode(TCAN485_SD_SCLK_PIN, INPUT);
+        pinMode(TCAN485_SD_CS_PIN, OUTPUT);
+        digitalWrite(TCAN485_SD_CS_PIN, HIGH);
+    }
 }
 
 bool HAL_SD_Init(void)
@@ -18,8 +36,7 @@ bool HAL_SD_Init(void)
     if (gInitialised)
         return true;
 
-    pinMode(TCAN485_SD_CS_PIN, OUTPUT);
-    digitalWrite(TCAN485_SD_CS_PIN, HIGH);
+    releaseCsHold();
 
     SPI.begin(
         TCAN485_SD_SCLK_PIN,
@@ -35,6 +52,7 @@ bool HAL_SD_Init(void)
             TCAN485_SD_SPI_HZ))
     {
         SPI.end();
+        driveInactivePins();
         return false;
     }
 
@@ -49,12 +67,17 @@ void HAL_SD_DeInit(void)
 
     SPI.end();
 
-    pinMode(TCAN485_SD_MISO_PIN, INPUT);
-    pinMode(TCAN485_SD_MOSI_PIN, INPUT);
-    pinMode(TCAN485_SD_SCLK_PIN, INPUT);
-    pinMode(TCAN485_SD_CS_PIN, INPUT);
+    driveInactivePins();
 
     gInitialised = false;
+}
+
+void HAL_SD_PrepareForSleep(void)
+{
+    HAL_SD_DeInit();
+
+    driveInactivePins();
+    gpio_hold_en((gpio_num_t)TCAN485_SD_CS_PIN);
 }
 
 bool HAL_SD_IsInitialised(void)
